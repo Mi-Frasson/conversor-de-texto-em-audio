@@ -1,0 +1,1 @@
+ccac124f8d6c22a1f963c0829cc02dfe1fc7b1d68ad473793b0a9c6bd0a08c6b  conversorDeTextoEmAudio-1.0.nvda-addon

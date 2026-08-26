@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+*.nvda-addon
+build/
+output/
+.sconsign.dblite

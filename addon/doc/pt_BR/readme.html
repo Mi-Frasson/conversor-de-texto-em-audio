@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Conversor de Texto em Áudio</title>
+</head>
+<body>
+<h1>Conversor de Texto em Áudio 1.0</h1>
+<p><strong>Autor: ]Frasson</strong></p>
+
+<h2>Sobre</h2>
+<p>O Conversor de Texto em Áudio transforma o texto de arquivos PDF em arquivos MP3.
+O complemento foi desenvolvido para uso com o NVDA e não exige uma instalação externa do Python.</p>
+
+<h2>Como funciona</h2>
+<ol>
+<li>Abra o conversor usando o comando configurado em Gestos de entrada.</li>
+<li>Escolha um arquivo PDF com texto selecionável.</li>
+<li>Escolha a pasta onde os arquivos MP3 serão salvos.</li>
+<li>Defina voz, velocidade e forma de divisão.</li>
+<li>Inicie a conversão e acompanhe o progresso pela janela acessível.</li>
+</ol>
+<p>É necessária conexão com a Internet para a geração da voz. PDFs digitalizados que contenham
+somente imagens precisam passar por OCR antes da conversão.</p>
+
+<h2>Assistente de primeira execução</h2>
+<p>Na primeira inicialização, um assistente explica o funcionamento e permite escolher
+as preferências padrão. Ele pode ser aberto novamente em
+<strong>NVDA &gt; Preferências &gt; Configurações &gt; Conversor de Texto em Áudio</strong>.</p>
+
+<h2>Configurar atalhos</h2>
+<p>O complemento não define teclas fixas. Para escolher seus próprios atalhos:</p>
+<ol>
+<li>Abra o menu do NVDA com NVDA+N.</li>
+<li>Entre em <strong>Preferências &gt; Gestos de entrada</strong>.</li>
+<li>Procure a categoria <strong>Conversor de Texto em Áudio</strong>.</li>
+<li>Selecione o comando, escolha <strong>Adicionar</strong> e pressione a combinação desejada.</li>
+</ol>
+
+<h2>Comandos disponíveis</h2>
+<ul>
+<li>Abrir o Conversor de Texto em Áudio.</li>
+<li>Cancelar a conversão em andamento.</li>
+</ul>
+
+<h2>Privacidade e conexão</h2>
+<p>Para sintetizar a voz, trechos do texto extraído do PDF são enviados pela Internet ao
+serviço de leitura em voz alta da Microsoft utilizado pelo complemento. Não use o complemento
+com documentos confidenciais se você não deseja que o conteúdo seja transmitido a esse serviço.</p>
+
+<h2>Limitações</h2>
+<ul>
+<li>A detecção automática de capítulos depende da estrutura do PDF e pode não reconhecer todos os livros.</li>
+<li>A divisão por páginas é a opção mais previsível.</li>
+<li>Alterações futuras no serviço on-line de voz podem exigir uma atualização do complemento.</li>
+</ul>
+
+<h2>Licença e componentes de terceiros</h2>
+<p>O código do complemento é distribuído sob GPL-2.0-or-later.
+O pacote inclui componentes de terceiros; consulte THIRD_PARTY_NOTICES.txt e a pasta licenses.</p>
+
+<h2>Projeto</h2>
+<p>Repositório: https://github.com/MiFrasson/conversor-de-texto-em-audio</p>
+</body>
+</html>

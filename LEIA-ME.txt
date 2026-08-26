@@ -1,0 +1,12 @@
+PDF para Audiolivro 1.0
+Autor: ]Frasson
+
+Novidades desta edição:
+- Assistente acessível de primeira execução.
+- Explicação de como o complemento funciona.
+- Preferências padrão de voz, velocidade, páginas, divisão e pasta de saída.
+- Painel em NVDA > Preferências > Configurações > PDF para Audiolivro.
+- Instruções para atalhos em NVDA > Preferências > Gestos de entrada > PDF para Audiolivro.
+- Assistente pode ser aberto novamente pelo painel de configurações.
+
+O complemento continua autossuficiente e não requer Python externo.
