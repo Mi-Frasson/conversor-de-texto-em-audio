@@ -145,6 +145,7 @@ class FirstRunWizard(wx.Dialog):
             page,
             sizer,
             "Este complemento transforma o texto de arquivos PDF em arquivos MP3. "
+            "Ele é autossuficiente: não é necessário instalar Python, pip ou bibliotecas externas.",
         )
         self._add_wrapped_text(
             page,
@@ -826,7 +827,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         try:
             import secrets
             import typing_extensions
-            import websocket
             from pypdf import PdfReader
 
             try:

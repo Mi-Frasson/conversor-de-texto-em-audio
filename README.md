@@ -10,7 +10,8 @@ Complemento para o NVDA que converte o texto de arquivos PDF em arquivos MP3.
 - Vozes neurais em português do Brasil.
 - Divisão por páginas e tentativa de detecção automática de capítulos.
 - Janela de progresso acessível.
-- Comandos configuráveis em **NVDA > Preferências > Definir comandos**.
+- Comandos configuráveis em **NVDA > Preferências > Gestos de entrada**.
+- Não exige Python externo nem `pip`.
 
 ## Requisitos
 
@@ -21,7 +22,7 @@ Complemento para o NVDA que converte o texto de arquivos PDF em arquivos MP3.
 
 ## Atalhos
 
-O complemento não impõe atalhos fixos. Abra **NVDA > Preferências > definir comandos**
+O complemento não impõe atalhos fixos. Abra **NVDA > Preferências > Gestos de entrada**
 e procure a categoria **Conversor de Texto em Áudio**.
 
 ## Privacidade
@@ -38,3 +39,18 @@ GPL-2.0-or-later. Componentes incluídos possuem suas próprias licenças; consu
 ## Autor
 
 ]Frasson
+
+
+## Dependências incluídas
+
+- pypdf 5.9.0 — BSD-3-Clause.
+- typing_extensions 4.16.0 — Python Software Foundation License Version 2.
+
+A versão 1.0.1 não inclui `websocket-client`. A comunicação WebSocket necessária
+é implementada pelo próprio código do complemento.
+
+## Privacidade e serviço de voz
+
+Durante a síntese, trechos do texto do PDF são enviados pela Internet ao serviço
+de leitura em voz alta da Microsoft utilizado pelo complemento. Esse serviço externo
+pode mudar ou ficar indisponível sem aviso.

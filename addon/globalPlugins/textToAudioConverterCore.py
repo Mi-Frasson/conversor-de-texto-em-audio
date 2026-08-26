@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
+import base64
 import hashlib
-import json
+import os
+import socket
+import ssl
+import struct
 import re
 import time
 import unicodedata
@@ -8,7 +12,6 @@ import uuid
 from pathlib import Path
 
 from pypdf import PdfReader
-import websocket
 
 
 # Current Edge Read Aloud protocol values (August 2026).
@@ -353,6 +356,230 @@ def _parse_headers(block):
     return headers
 
 
+_WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+
+def _recv_exact(sock, size):
+    data = bytearray()
+    while len(data) < size:
+        chunk = sock.recv(size - len(data))
+        if not chunk:
+            raise ConverterError("A conexão com o serviço de voz foi encerrada.")
+        data.extend(chunk)
+    return bytes(data)
+
+
+def _build_client_frame(opcode, payload=b""):
+    """Cria um frame WebSocket RFC 6455 mascarado."""
+    if isinstance(payload, str):
+        payload = payload.encode("utf-8")
+
+    first = 0x80 | (opcode & 0x0F)
+    length = len(payload)
+    mask = os.urandom(4)
+
+    if length < 126:
+        header = bytes((first, 0x80 | length))
+    elif length <= 0xFFFF:
+        header = bytes((first, 0x80 | 126)) + struct.pack("!H", length)
+    else:
+        header = bytes((first, 0x80 | 127)) + struct.pack("!Q", length)
+
+    masked = bytes(
+        byte ^ mask[index % 4]
+        for index, byte in enumerate(payload)
+    )
+    return header + mask + masked
+
+
+def _read_frame(sock):
+    first, second = _recv_exact(sock, 2)
+    fin = bool(first & 0x80)
+    opcode = first & 0x0F
+    masked = bool(second & 0x80)
+    length = second & 0x7F
+
+    if length == 126:
+        length = struct.unpack("!H", _recv_exact(sock, 2))[0]
+    elif length == 127:
+        length = struct.unpack("!Q", _recv_exact(sock, 8))[0]
+
+    mask = _recv_exact(sock, 4) if masked else None
+    payload = _recv_exact(sock, length) if length else b""
+
+    if mask:
+        payload = bytes(
+            byte ^ mask[index % 4]
+            for index, byte in enumerate(payload)
+        )
+
+    return fin, opcode, payload
+
+
+class _WebSocketConnection:
+    """Cliente WebSocket mínimo para a conexão usada pelo complemento."""
+
+    def __init__(self, sock):
+        self.sock = sock
+        self._closed = False
+
+    @classmethod
+    def connect(cls, url, origin, user_agent, timeout=60):
+        if not url.startswith("wss://"):
+            raise ConverterError("O endereço do serviço de voz não é seguro.")
+
+        remainder = url[len("wss://"):]
+        host, separator, path = remainder.partition("/")
+        if not separator:
+            path = ""
+        path = "/" + path
+
+        raw = None
+        tls = None
+
+        try:
+            raw = socket.create_connection((host, 443), timeout=timeout)
+            context = ssl.create_default_context()
+            tls = context.wrap_socket(raw, server_hostname=host)
+            tls.settimeout(timeout)
+
+            key = base64.b64encode(os.urandom(16)).decode("ascii")
+            request = (
+                f"GET {path} HTTP/1.1\r\n"
+                f"Host: {host}\r\n"
+                "Upgrade: websocket\r\n"
+                "Connection: Upgrade\r\n"
+                f"Sec-WebSocket-Key: {key}\r\n"
+                "Sec-WebSocket-Version: 13\r\n"
+                f"Origin: {origin}\r\n"
+                "Pragma: no-cache\r\n"
+                "Cache-Control: no-cache\r\n"
+                "Accept-Language: en-US,en;q=0.9\r\n"
+                f"User-Agent: {user_agent}\r\n"
+                "\r\n"
+            )
+            tls.sendall(request.encode("ascii"))
+
+            response = bytearray()
+            while b"\r\n\r\n" not in response:
+                chunk = tls.recv(4096)
+                if not chunk:
+                    raise ConverterError(
+                        "O serviço de voz encerrou a conexão durante a negociação."
+                    )
+                response.extend(chunk)
+                if len(response) > 65536:
+                    raise ConverterError("Resposta WebSocket inválida.")
+
+            header_block = bytes(response).split(b"\r\n\r\n", 1)[0]
+            lines = header_block.split(b"\r\n")
+            status = lines[0].decode("latin-1", errors="replace")
+            if " 101 " not in status:
+                raise ConverterError(
+                    "O serviço de voz recusou a conexão WebSocket. "
+                    f"Resposta: {status}"
+                )
+
+            headers = {}
+            for line in lines[1:]:
+                if b":" in line:
+                    key_header, value = line.split(b":", 1)
+                    headers[key_header.strip().lower()] = value.strip()
+
+            expected = base64.b64encode(
+                hashlib.sha1((key + _WS_GUID).encode("ascii")).digest()
+            )
+            actual = headers.get(b"sec-websocket-accept")
+            if actual != expected:
+                raise ConverterError(
+                    "A validação de segurança da conexão WebSocket falhou."
+                )
+
+            return cls(tls)
+
+        except ConverterError:
+            if tls:
+                try:
+                    tls.close()
+                except Exception:
+                    pass
+            elif raw:
+                try:
+                    raw.close()
+                except Exception:
+                    pass
+            raise
+
+        except Exception as error:
+            if tls:
+                try:
+                    tls.close()
+                except Exception:
+                    pass
+            elif raw:
+                try:
+                    raw.close()
+                except Exception:
+                    pass
+
+            raise ConverterError(
+                "Não foi possível conectar ao serviço de voz. "
+                f"Detalhes: {error}"
+            )
+
+    def send_text(self, text):
+        if self._closed:
+            raise ConverterError("A conexão com o serviço de voz já foi encerrada.")
+        self.sock.sendall(_build_client_frame(0x1, text))
+
+    def _send_control(self, opcode, payload=b""):
+        if not self._closed:
+            self.sock.sendall(_build_client_frame(opcode, payload))
+
+    def recv_message(self):
+        fragments = bytearray()
+        message_opcode = None
+
+        while True:
+            fin, opcode, payload = _read_frame(self.sock)
+
+            if opcode == 0x8:
+                self._closed = True
+                return None, None
+
+            if opcode == 0x9:
+                self._send_control(0xA, payload)
+                continue
+
+            if opcode == 0xA:
+                continue
+
+            if opcode in (0x1, 0x2):
+                message_opcode = opcode
+                fragments = bytearray(payload)
+            elif opcode == 0x0 and message_opcode is not None:
+                fragments.extend(payload)
+            else:
+                continue
+
+            if fin and message_opcode is not None:
+                return message_opcode, bytes(fragments)
+
+    def close(self):
+        if self._closed:
+            return
+        try:
+            self._send_control(0x8, struct.pack("!H", 1000))
+        except Exception:
+            pass
+
+        self._closed = True
+        try:
+            self.sock.close()
+        except Exception:
+            pass
+
+
 def _synthesize_once(text, target, voice, rate):
     connection_id = uuid.uuid4().hex
     gec = _windows_filetime_token()
@@ -364,27 +591,12 @@ def _synthesize_once(text, target, voice, rate):
         + "&Sec-MS-GEC-Version=" + SEC_MS_GEC_VERSION
     )
 
-    headers = [
-        "Pragma: no-cache",
-        "Cache-Control: no-cache",
-        "Accept-Encoding: gzip, deflate, br, zstd",
-        "Accept-Language: en-US,en;q=0.9",
-        f"User-Agent: {USER_AGENT}",
-    ]
-
-    try:
-        ws = websocket.create_connection(
-            url,
-            header=headers,
-            origin=ORIGIN,
-            timeout=60,
-            enable_multithread=True,
-        )
-    except Exception as error:
-        raise ConverterError(
-            "Não foi possível conectar ao serviço de voz. "
-            f"Detalhes: {error}"
-        )
+    ws = _WebSocketConnection.connect(
+        url=url,
+        origin=ORIGIN,
+        user_agent=USER_AGENT,
+        timeout=60,
+    )
 
     received_audio = False
 
@@ -397,7 +609,7 @@ def _synthesize_once(text, target, voice, rate):
             '{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},'
             '"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n'
         )
-        ws.send(config)
+        ws.send_text(config)
 
         request_id = uuid.uuid4().hex
         ssml = _make_ssml(text, voice, rate)
@@ -409,18 +621,16 @@ def _synthesize_once(text, target, voice, rate):
             "Path:ssml\r\n\r\n"
             + ssml
         )
-        ws.send(request)
+        ws.send_text(request)
 
         with open(target, "wb") as output:
             while True:
-                opcode, data = ws.recv_data()
+                opcode, data = ws.recv_message()
+                if opcode is None:
+                    break
 
-                if opcode == websocket.ABNF.OPCODE_TEXT:
-                    if isinstance(data, bytes):
-                        decoded = data.decode("utf-8", errors="replace")
-                    else:
-                        decoded = data
-
+                if opcode == 0x1:
+                    decoded = data.decode("utf-8", errors="replace")
                     header_end = decoded.find("\r\n\r\n")
                     header_text = (
                         decoded[:header_end]
@@ -428,17 +638,17 @@ def _synthesize_once(text, target, voice, rate):
                         else decoded
                     )
 
-                    path = None
+                    path_value = None
                     for line in header_text.split("\r\n"):
                         if line.lower().startswith("path:"):
-                            path = line.split(":", 1)[1].strip().lower()
+                            path_value = line.split(":", 1)[1].strip().lower()
                             break
 
-                    if path == "turn.end":
+                    if path_value == "turn.end":
                         break
 
-                elif opcode == websocket.ABNF.OPCODE_BINARY:
-                    if not isinstance(data, (bytes, bytearray)) or len(data) < 2:
+                elif opcode == 0x2:
+                    if len(data) < 2:
                         continue
 
                     header_length = int.from_bytes(data[:2], "big")
@@ -450,28 +660,19 @@ def _synthesize_once(text, target, voice, rate):
                     header_block = bytes(data[header_start:header_end])
                     body = bytes(data[header_end:])
 
-                    # Some service responses include an extra CRLF separator.
                     if body.startswith(b"\r\n"):
                         body = body[2:]
 
                     parsed = _parse_headers(header_block)
-
                     if parsed.get(b"path") != b"audio":
                         continue
 
-                    content_type = parsed.get(b"content-type")
-                    if content_type == b"audio/mpeg" and body:
+                    if parsed.get(b"content-type") == b"audio/mpeg" and body:
                         output.write(body)
                         received_audio = True
 
-                elif opcode == websocket.ABNF.OPCODE_CLOSE:
-                    break
-
     finally:
-        try:
-            ws.close()
-        except Exception:
-            pass
+        ws.close()
 
     if not received_audio or not target.exists() or target.stat().st_size < 1000:
         target.unlink(missing_ok=True)
@@ -479,7 +680,6 @@ def _synthesize_once(text, target, voice, rate):
             "O serviço de voz não retornou áudio. "
             "Tente novamente mais tarde."
         )
-
 
 def _synthesize(text, target, voice, rate, cancel_event):
     last_error = None

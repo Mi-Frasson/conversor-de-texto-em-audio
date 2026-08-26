@@ -1,4 +1,4 @@
-Conversor de Texto em Áudio 1.0 — Componentes de terceiros
+Conversor de Texto em Áudio 1.0.1 — Componentes de terceiros
 
 Este complemento inclui código de terceiros para funcionar sem uma instalação externa do Python.
 
@@ -7,13 +7,13 @@ Licença: BSD-3-Clause
 Projeto: https://github.com/py-pdf/pypdf
 Texto da licença: licenses/pypdf-BSD-3-Clause.txt
 
-websocket-client 1.9.0
-Licença: Apache-2.0
-Projeto: https://github.com/websocket-client/websocket-client
-Texto da licença: licenses/websocket-client-Apache-2.0.txt
+typing_extensions 4.16.0
+Licença: Python Software Foundation License Version 2
+Projeto: https://github.com/python/typing_extensions
+Texto da licença: licenses/typing_extensions-PSF-2.0.txt
 
-typing_extensions
-Utilizado como módulo de compatibilidade pelo código incluído.
+A implementação WebSocket usada pelo complemento faz parte do próprio código do
+Conversor de Texto em Áudio. A dependência websocket-client foi removida na versão 1.0.1.
 
-O complemento se conecta pela Internet ao serviço de leitura em voz alta da Microsoft para
-sintetizar áudio. O serviço não é redistribuído dentro do complemento.
+O complemento se conecta pela Internet ao serviço de leitura em voz alta da Microsoft
+para sintetizar áudio. O serviço não é redistribuído dentro do complemento.

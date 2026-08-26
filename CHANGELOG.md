@@ -1,5 +1,11 @@
 # Histórico de alterações
 
+## 1.0.1
+- Correção de licenciamento.
+- Remoção de websocket-client.
+- Inclusão da licença de typing_extensions.
+- Correção da URL do repositório.
+
 ## 1.0
 
 Primeira versão pública do **Conversor de Texto em Áudio**.
